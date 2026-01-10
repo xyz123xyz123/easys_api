@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use Illuminate\Http\Request; 
 use App\Http\Controllers\Api\LoginController;   
 use App\Http\Controllers\Api\MemberController;   
+use App\Http\Controllers\Api\PdfController;   
 
 // Route::post('/login', [AuthController::class, 'login']);
 // Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
@@ -25,5 +26,6 @@ use App\Http\Controllers\Api\MemberController;
 
 Route::post('/login', [LoginController::class, 'authenticate']);
 Route::post('/get-billed-details', [MemberController::class, 'getDetailedBill']);
+Route::post('/get-my-bill-summary', [MemberController::class, 'getMyBillSummary']);
 Route::get('/pdf/{type}/{filename}', [PdfController::class, 'show']);
 

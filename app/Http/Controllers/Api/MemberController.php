@@ -51,7 +51,12 @@ class MemberController extends Controller {
             'society_id' => 'required'
             ]);
         if($validation->fails()){
-            return response_json(MISSINGPARAMETER,implode(',',$validation->errors()->all()));
+            return response()->json([
+                'status'  => config('constants.MISSINGPARAMETER'),
+                'message' => implode(', ', $validation->errors()->all()),
+                'data'    => null
+            ], 422);
+
         }
         
         $memberId = $request->input('member_id');
@@ -80,10 +85,20 @@ class MemberController extends Controller {
                 array_push($upatedMemeberBillSummary,$summary);
             }
             
-            return response_json(SUCCESS,'',$upatedMemeberBillSummary);
+            return response()->json([
+                'status'  => config('constants.SUCCESS'),
+                'message' => '',
+                'data'    => $upatedMemeberBillSummary
+            ], 200);
+
         }
         
-        return response_json(UNSUCCESS,'Member Bill Not Found',$upatedMemeberBillSummary);
+        return response()->json([
+            'status'  => config('constants.UNSUCCESS'),
+            'message' => 'Member Bill Not Found',
+            'data'    => $upatedMemeberBillSummary
+        ], 404);
+
     }    
     
     public function  getDetailedBill(Request $request){

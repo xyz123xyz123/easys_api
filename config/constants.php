@@ -18,7 +18,6 @@ return [
     |--------------------------------------------------------------------------
     */
     'PDF_LOCAL_PATH' => storage_path('app/pdfs/'),
-
     'PDF_DOCUMENT_URL' => rtrim(env('APP_URL'), '/') . '/api/pdf/',
 
 
