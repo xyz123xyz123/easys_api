@@ -233,7 +233,7 @@ class MemberController extends Controller {
                     ], 500);                    
                                       
                 
-                $fileData['bill_data'] = $billDetailedData['bill_data'];
+                // $fileData['bill_data'] = $billDetailedData['bill_data'];
                 return response()->json([
                     'status'  => config('constants.SUCCESS'),
                     'message' => '',
