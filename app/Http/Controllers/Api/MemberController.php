@@ -46,6 +46,7 @@ class MemberController extends Controller {
     }
     
     public function getMyBillSummary(Request $request){
+        
         $validation = Validator::make($request->all(),[
             'member_id' => 'required',
             'society_id' => 'required'
@@ -87,7 +88,7 @@ class MemberController extends Controller {
             
             return response()->json([
                 'status'  => config('constants.SUCCESS'),
-                'message' => '',
+                'message' => 'My Bill Summary Data fetched successfully',
                 'data'    => $upatedMemeberBillSummary
             ], 200);
 
@@ -309,7 +310,12 @@ class MemberController extends Controller {
             'society_id' => 'required'
             ]);
         if($validation->fails()){
-            return response_json(MISSINGPARAMETER,implode(',',$validation->errors()->all()));
+            return response()->json([
+                'status'  => config('constants.MISSINGPARAMETER'),
+                'message' => implode(', ', $validation->errors()->all()),
+                'data'    => null
+            ], 422);
+
         }      
         
         $memberId = $request->input('member_id');
@@ -330,10 +336,20 @@ class MemberController extends Controller {
                 'flat_no' => $paymentFirstIndexData['flat_no']
                 ];
             
-            return response_json(SUCCESS,'Payments fetched successfully',$paymentResponse);
+            return response()->json([
+                'status'  => config('constants.SUCCESS'),
+                'message' => 'Payments fetched successfully',
+                'data'    => $paymentResponse
+            ], 200);
+
         }
         else
-            return response_json(UNSUCCESS,'Payments not available',$paymentResponse);
+            return response()->json([
+                'status'  => config('constants.UNSUCCESS'),
+                'message' => 'Payments not available',
+                'data'    => $paymentResponse
+            ], 404);
+
     }
     
     public function memberPaymentSummary($memberId){
@@ -350,11 +366,15 @@ class MemberController extends Controller {
             ]);
         
         if($validation->fails()){
-            return response_json(MISSINGPARAMETER,implode(',',$validation->errors()->all()));
+            return response()->json([
+                'status'  => config('constants.MISSINGPARAMETER'),
+                'message' => implode(', ', $validation->errors()->all()),
+                'data'    => null
+            ], 422);
         }  
         
         $paymentId = $request->input('payment_id');
-        $type = $request->input('type');
+        // $type = $request->input('type');
         $paymentDetails =  Payment::leftjoin('banks','member_payments.member_bank_id','=','banks.id')->where('member_payments.id',$paymentId)
         ->select('member_payments.id as payment_id','receipt_id','cheque_reference_number','narration',
          'amount_paid',DB::raw("date_format(payment_date,'%d-%m-%Y') as payment_date"),DB::raw("date_format(entry_date,'%d-%m-%Y') entry_date"),'bank_name','payment_modes.payment_mode','members.id as member_id',
@@ -370,43 +390,67 @@ class MemberController extends Controller {
             $fileData = (new PdfController)->generateReciptPdf($paymentDetails);
             if(!empty($fileData)){
                 if(empty($fileData)){
-                    return response_json(UNSUCCESS,'Failed To Generate Pdf');
+                    return response()->json([
+                            'status'  => config('constants.UNSUCCESS'),
+                            'message' => 'Failed to generate PDF',
+                            'data'    => null
+                        ], 500);
+
                 }
                 else{
                     $emailId = $paymentDetails['member_email'];
-                    if($type == 'email'){
-                        if(!empty($emailId)){
-                            $fileName = $fileData['file_path'];
-                            $sendStatus = $this->sendEmail($emailId,$fileName,'Payment Receipt');
-                            if($sendStatus){
-                                return response_json(SUCCESS,"Email Sent To $emailId",$fileData);
-                            }
-                            else{
-                                return response_json(SUCCESS,"Email Not Sent");
-                            }
-                        }
-                        else{
-                            return response_json(UNSUCCESS,'Email Id Not Registered'); 
-                        }
-                    }                    
+                    // if($type == 'email'){
+                    //     if(!empty($emailId)){
+                    //         $fileName = $fileData['file_path'];
+                    //         $sendStatus = $this->sendEmail($emailId,$fileName,'Payment Receipt');
+                    //         if($sendStatus){
+                    //             return response_json(SUCCESS,"Email Sent To $emailId",$fileData);
+                    //         }
+                    //         else{
+                    //             return response_json(SUCCESS,"Email Not Sent");
+                    //         }
+                    //     }
+                    //     else{
+                    //         return response_json(UNSUCCESS,'Email Id Not Registered'); 
+                    //     }
+                    // }                    
                 }
-                return response_json(SUCCESS,'',$fileData);
+                return response()->json([
+                    'status'  => config('constants.SUCCESS'),
+                    'message' => 'Payment Details Fetched Suceessfully',
+                    'data'    => $fileData
+                ], 200);
+
             }            
-            return response_json(SUCCESS,'',$paymentDetails);
+            return response()->json([
+                'status'  => config('constants.SUCCESS'),
+                'message' => '',
+                'data'    => $paymentDetails
+            ], 200);
+
         }
         else{
-            return response_json(UNSUCCESS,'Payment details not found ',$paymentDetails);
+            return response()->json([
+                'status'  => config('constants.UNSUCCESS'),
+                'message' => 'Payment details not found',
+                'data'    => $paymentDetails
+            ], 404);
+
         }
     }
     
     public function getMemberLedgerDetails(Request $request){
         $validation = Validator::make($request->all(),[
             'member_id' => 'required',
-            'is_pdf_required' => 'required'
+            'is_pdf_required' => 'required||in:1,true'
             ]);
         
         if($validation->fails()){
-            return response_json(MISSINGPARAMETER,implode(',',$validation->errors()->all()));
+          return response()->json([
+                'status'  => config('constants.MISSINGPARAMETER'),
+                'message' => implode(', ', $validation->errors()->all()),
+                'data'    => null
+            ], 422);
         }  
         
         
@@ -421,7 +465,12 @@ class MemberController extends Controller {
         'email_id','telephone_no','registration_no','building_name','flat_no','wing_id')->where('members.id',$memberId)->first();        
         
         if(empty($memberData)){
-           return response_json(UNSUCCESS,'member data not available'); 
+          return response()->json([
+                'status'  => config('constants.UNSUCCESS'),
+                'message' => 'Member data not available',
+                'data'    => null
+            ], 404);
+
         }
                
         
@@ -607,25 +656,35 @@ class MemberController extends Controller {
         
         $fileData = (new PdfController)->generateLedgerPdf($response);
         if(empty($fileData))
-            return response_json(UNSUCCESS,'Failed To Generate Pdf');   
-            
-        if($type == 'email'){
-            if(!empty($emailId)){
-                $fileName = $fileData['file_path'];
-                $sendStatus = $this->sendEmail($emailId,$fileName,'Ledger');
-                if($sendStatus){
-                    return response_json(SUCCESS,"Email Sent To $emailId",$fileData);
-                }
-                else{
-                    return response_json(SUCCESS,"Email Not Sent");
-                }
-            }
-            else{
-                return response_json(UNSUCCESS,'Email Id Not Registered'); 
-            }
-        }
+            return response()->json([
+                'status'  => config('constants.UNSUCCESS'),
+                'message' => 'Failed to generate PDF',
+                'data'    => null
+            ], 500);
 
-        return response_json(SUCCESS,'',$fileData);   
+            
+        // if($type == 'email'){
+        //     if(!empty($emailId)){
+        //         $fileName = $fileData['file_path'];
+        //         $sendStatus = $this->sendEmail($emailId,$fileName,'Ledger');
+        //         if($sendStatus){
+        //             return response_json(SUCCESS,"Email Sent To $emailId",$fileData);
+        //         }
+        //         else{
+        //             return response_json(SUCCESS,"Email Not Sent");
+        //         }
+        //     }
+        //     else{
+        //         return response_json(UNSUCCESS,'Email Id Not Registered'); 
+        //     }
+        // }
+
+        return response()->json([
+            'status'  => config('constants.SUCCESS'),
+            'message' => 'Member Ledger Data Fetched Successfully',
+            'data'    => $fileData
+        ], 200);
+
                 
     }
     
@@ -962,4 +1021,48 @@ class MemberController extends Controller {
 
         return $orderData;
     }
+
+    public function getFlatDetails(Request $request)
+    {
+        // ✅ Validation
+        $validation = Validator::make($request->all(), [
+            'mobile_no' => 'required|digits_between:10,15',
+        ]);
+
+        if ($validation->fails()) {
+            return response()->json([
+                'status'  => config('constants.MISSINGPARAMETER'),
+                'message' => implode(', ', $validation->errors()->all()),
+                'data'    => null
+            ], 422);
+        }
+
+        $mobileNo = $request->mobile_no;
+
+        // ✅ Query
+        $flatNos = DB::table('members')
+            ->where('member_phone', $mobileNo)
+            ->whereNotNull('user_id')
+            ->value(DB::raw('GROUP_CONCAT(flat_no)'));
+
+        // ❌ No data found
+        if (empty($flatNos)) {
+            return response()->json([
+                'status'  => config('constants.UNSUCCESS'),
+                'message' => 'No flat details found',
+                'data'    => []
+            ], 404);
+        }
+
+        // ✅ Success response
+        return response()->json([
+            'status'  => config('constants.SUCCESS'),
+            'message' => 'Flat details fetched successfully',
+            'data'    => [
+                'mobile_no' => $mobileNo,
+                'flat_no'  => explode(',', $flatNos)
+            ]
+        ], 200);
+    }
+
 }
