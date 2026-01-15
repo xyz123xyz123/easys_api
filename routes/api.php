@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\DashboardController;
 
 // Login API
 Route::post('/login', [LoginController::class, 'authenticate']);
+Route::post('/verify-otp', [LoginController::class, 'verifyOtp']);
 
 // Member Current Bill Summary - To download PDF
 Route::post('/get-billed-details', [MemberController::class, 'getDetailedBill']);
@@ -50,5 +51,10 @@ Route::post('/get-payment-pdf', [MemberController::class, 'memberPaymentInDetail
 
 // view PDF
 Route::get('/pdf/{type}/{filename}', [PdfController::class, 'show']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    // Route::get('/profile', [MemberController::class, 'profile']);
+});
+
 
 // SELECT GROUP_CONCAT(`flat_no`) FROM `members` WHERE `member_phone` = '9167737494' AND `user_id` IS NOT NULL LIMIT 50

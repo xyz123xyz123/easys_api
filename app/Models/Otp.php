@@ -22,6 +22,10 @@ class Otp extends Model
     protected $fillable = [
         'mobile_no',
         'otp',
+        'otp_expires_at',
+        'otp_email_status',
+        'otp_sms_status',
+        'is_verified',
         'created_at'
         ];
 

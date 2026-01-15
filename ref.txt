@@ -1,2 +1,26 @@
 php artisan config:clear
 php artisan config:cache
+
+
+     'data'    => [
+                'member_data' => [
+                    'member_id'    => $memberData['member_id'],
+                    'member_name'  => $memberData['member_name'],
+                    'society_id'   => $memberData['society_id'],
+                    'society_name' => $memberData['society_name']
+                ]
+            ]
+
+
+            use Illuminate\Support\Facades\Hash;
+
+$otp = random_int(1000, 9999);
+
+$user->otp = Hash::make($otp);
+$user->otp_expires_at = now()->addMinutes(5);
+$user->save();
+
+
+if (!Hash::check($request->otp, $user->otp)) {
+    return response()->json(['status' => false, 'message' => 'Invalid OTP'], 401);
+}

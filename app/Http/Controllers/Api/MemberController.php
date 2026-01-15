@@ -307,7 +307,8 @@ class MemberController extends Controller {
         
         $validation = Validator::make($request->all(),[
             'member_id' => 'required',
-            'society_id' => 'required'
+            'society_id' => 'required',
+            'mobile_no' => 'required|digits_between:10,15'
             ]);
         if($validation->fails()){
             return response()->json([
@@ -330,10 +331,32 @@ class MemberController extends Controller {
             $paymentResponse['payment_data'] = $memberPaymentDetails1;
             $paymentResponse['total_paid'] = $totalAmountPaid;
             $paymentResponse['total_paid_in_words'] = numberTowordsEnglish($totalAmountPaid);
+
+            $mobileNo = trim($request->mobile_no);
+            
+           $flatNos = DB::table('members')
+                ->where('member_phone', $mobileNo)
+                ->whereNotNull('user_id')
+                ->pluck('flat_no')   // Laravel way
+                ->toArray();
+
+            natsort($flatNos);
+            $flatNos = array_values($flatNos);
+
+            $switch_flat_status = false;
+            $flat_no_array = [];
+
+            if (!empty($flatNos)) {
+                $switch_flat_status = count($flatNos) > 1;   // true only if multiple flats
+                $flat_no_array = $flatNos;
+            }
+
             $paymentResponse['member_data'] = [
                 'member_prefix' => $paymentFirstIndexData['member_prefix'],
                 'member_name' => $paymentFirstIndexData['member_name'],
-                'flat_no' => $paymentFirstIndexData['flat_no']
+                'current_flat_no' => $paymentFirstIndexData['flat_no'],
+                'switch_flat_status' => $switch_flat_status,
+                'flat_no' => $flat_no_array
                 ];
             
             return response()->json([

@@ -57,20 +57,20 @@ class DashboardController extends Controller
         $payment_response = Http::withHeaders([     
         'Accept' => 'application/json',
         ])->post(rtrim(config('app.url'), '/') . '/api/payment-summary', [
-            'member_id' => $member_id,'society_id' => $society_id
+            'member_id' => $member_id,'society_id' => $society_id,'mobile_no' => $mobile_no
         ]);  
 
-        $flat_response = Http::withHeaders([     
-        'Accept' => 'application/json',
-        ])->post(rtrim(config('app.url'), '/') . '/api/get-flat_details', [
-            'mobile_no' => $mobile_no
-        ]);
+        // $flat_response = Http::withHeaders([     
+        // 'Accept' => 'application/json',
+        // ])->post(rtrim(config('app.url'), '/') . '/api/get-flat_details', [
+        //     'mobile_no' => $mobile_no
+        // ]);
 
         
         $data['bill_summary'] = $bill_response->json();
         $data['ledger_summary'] = $ledger_response->json();
         $data['payment_summary'] = $payment_response->json();
-        $data['flat_summary'] = $flat_response->json();
+        // $data['flat_summary'] = $flat_response->json();
 
         // return $bill_response->json();
         // return $data;
