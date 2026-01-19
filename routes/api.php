@@ -6,7 +6,8 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Api\LoginController;   
 use App\Http\Controllers\Api\MemberController;   
 use App\Http\Controllers\Api\PdfController;   
-use App\Http\Controllers\Api\DashboardController;   
+use App\Http\Controllers\Api\DashboardController; 
+use App\Http\Controllers\Api\EmailController;
 
 // Route::post('/login', [AuthController::class, 'login']);
 // Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
@@ -55,6 +56,8 @@ Route::get('/pdf/{type}/{filename}', [PdfController::class, 'show']);
 Route::middleware('auth:sanctum')->group(function () {
     // Route::get('/profile', [MemberController::class, 'profile']);
 });
+
+Route::post('/send-email', [EmailController::class, 'send']);
 
 
 // SELECT GROUP_CONCAT(`flat_no`) FROM `members` WHERE `member_phone` = '9167737494' AND `user_id` IS NOT NULL LIMIT 50

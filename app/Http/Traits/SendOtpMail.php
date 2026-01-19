@@ -24,7 +24,7 @@ trait SendOtpMail
 
             Mail::send('emails.otp', $data, function ($message) use ($email) {
                 $message->to($email)
-                        ->subject('Your OTP Verification Code');
+                        ->subject('Easy Logics - Your app login code');
             });
 
             return true;

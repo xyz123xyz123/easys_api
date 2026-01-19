@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 use App\Models\Member;
-use App\Models\OTP;
+use App\Models\Otp;
 use App\Http\Traits\SendOtpMail;
 use Carbon\Carbon;
 
