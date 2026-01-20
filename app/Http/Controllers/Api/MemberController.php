@@ -1088,4 +1088,145 @@ class MemberController extends Controller {
         ], 200);
     }
 
+
+    public function  getSwitchFlatDetails(Request $request){
+        $validation = Validator::make($request->all(),[
+            'member_id' => 'required',
+            'society_id' => 'required',
+            'bill_no' => 'required',
+            'bill_month' => 'required'
+            ]);
+            
+            if ($validation->fails()) {
+                return response()->json([
+                    'status'  => config('constants.MISSINGPARAMETER'),
+                    'message' => implode(', ', $validation->errors()->all()),
+                    'data'    => null
+                ], 422);
+            }
+   
+        
+        $memberId = $request->input('member_id');
+        $societyId = $request->input('society_id');        
+        $billNo = $request->input('bill_no');
+        $billMonth = $request->input('bill_month');
+        $type = $request->has('type') ? $request->input('type') : '';
+        $billDetailedData = [];
+        
+        $startDate = $this->startDate;
+        $endDate = $this->endDate;
+
+        $sql = "select summaries.member_id,month,bill_due_date,bill_generated_date,bill_no,bill_type,monthly_amount,amount_payable,op_principal_arrears,monthly_bill_amount,interest_on_due_amount,
+            op_interest_arrears,igst_total,cgst_total,sgst_total,principal_adjusted,interest_adjusted,discount,op_due_amount,tax_total
+            ,member_prefix,member_name,member_email,flat_no,residential,unit_type,floor_no,igst_total,cgst_total,sgst_total,principal_adjusted,interest_adjusted,discount,
+                society_name,society_code,registration_no,registration_date,email_id,address,telephone_no,authorised_person,bill_note,show_bills_in_receipt,special_field,title,amount,bill_frequency_id,wing_id,area    from 
+            (
+                select member_id,month,bill_due_date,bill_generated_date,bill_no,bill_type,amount_payable,op_principal_arrears,society_id,bill_frequency_id,monthly_bill_amount,interest_on_due_amount,
+                op_interest_arrears,igst_total,cgst_total,sgst_total,principal_adjusted,interest_adjusted,discount,op_due_amount,tax_total,monthly_amount from member_bill_summaries 
+                where bill_no = $billNo and society_id = $societyId and bill_generated_date between  '$startDate' and '$endDate'
+            )  as summaries
+            join (
+	            select id ,member_prefix,member_name,member_email,flat_no,residential,unit_type,floor_no,wing_id,area from members where id = $memberId limit 1
+            ) as member
+            on summaries.member_id = member.id
+            join (
+	            select id,society_name,society_code,registration_no,registration_date,email_id,address,telephone_no,authorised_person from societies where id = $societyId limit 1
+            ) as society on society.id = summaries.society_id
+            join (
+	            select bill_note,show_bills_in_receipt,society_id,special_field from society_parameters where society_id = $societyId limit 1
+            ) as parameter on parameter.society_id = summaries.society_id
+            left join (
+                select title,amount,member_id from member_bill_generates  join society_ledger_heads  on member_bill_generates.ledger_head_id = society_ledger_heads.id 
+                where member_bill_generates.society_id = $societyId and month = $billMonth and amount > 0
+	       ) leaderHeads on summaries.member_id = leaderHeads.member_id";
+
+        //    echo $sql;die;
+        
+        $billDetailed = DB::select($sql);
+
+	   if(!empty($billDetailed)){
+	       $firstIndexBillRecord = (array)$billDetailed[0];
+	       $emailId = $firstIndexBillRecord['member_email'];
+	       $billDetailedData['society_data'] = [
+	           'name' => $firstIndexBillRecord['society_name'],
+	           'registeration_no' => $firstIndexBillRecord['registration_no'],
+	           'registeration_date' => $firstIndexBillRecord['registration_date'],
+	           'address' => $firstIndexBillRecord['address'],
+	           'email_id' => $firstIndexBillRecord['email_id'],
+	           'telephone_no' => $firstIndexBillRecord['telephone_no'],
+	           'authorized_persion'=> $firstIndexBillRecord['authorised_person']
+	           ];
+	           
+	       $billDetailedData['member_data'] = [
+	           'member_id' => $firstIndexBillRecord['member_id'],
+	           'prefix' => $firstIndexBillRecord['member_prefix'],
+	           'name' => $firstIndexBillRecord['member_name'],
+	           'flat_no' => $firstIndexBillRecord['flat_no'],
+	           'unit_type' => $firstIndexBillRecord['unit_type'],
+	           'floor_no' => $firstIndexBillRecord['floor_no'],
+	           'area' => $firstIndexBillRecord['area'],
+	           'wing_id' => $firstIndexBillRecord['wing_id']	           
+	           ];
+	       $billMonth = $firstIndexBillRecord['month'];
+	       $billFequenyId = $firstIndexBillRecord['bill_frequency_id'];
+	       $billGeneratedDate = $firstIndexBillRecord['bill_generated_date'];
+	       $billYear = date('Y',strtotime($billGeneratedDate));
+	       $billDetailedData['bill_data'] = [
+	           'bill_month' => $billMonth,
+	           'bill_for' => (new CommonController)->societyBillingFrequency($billFequenyId,$billMonth).' '.$billYear,
+	           'bill_no' => $firstIndexBillRecord['bill_no'],
+	           'bill_date' => dateFormatMMDDYY($firstIndexBillRecord['bill_generated_date']),
+	           'bill_due_date' => dateFormatMMDDYY($firstIndexBillRecord['bill_due_date']),
+	           'bill_amount' => $firstIndexBillRecord['monthly_amount']-$firstIndexBillRecord['tax_total'],
+	           'amount_payable' => (new CommonController)->convertToDrCr($firstIndexBillRecord['amount_payable']),
+	           'principal_arrears' =>(new CommonController)->convertToDrCr($firstIndexBillRecord['op_principal_arrears']),
+	           'interest_arrears' =>(new CommonController)->convertToDrCr($firstIndexBillRecord['op_interest_arrears']),
+	           'interest' =>$firstIndexBillRecord['interest_on_due_amount'],
+	           'principal_credit' => (new CommonController)->convertToDrCr($firstIndexBillRecord['op_due_amount']),
+	           'less_adjustment' => $firstIndexBillRecord['principal_adjusted']+$firstIndexBillRecord['interest_adjusted']+$firstIndexBillRecord['discount'],
+	           'bill_type' =>  ($firstIndexBillRecord['bill_type'] == 'reg') ? 'Regular' : 'Supplementary',
+	           'igst_total' =>$firstIndexBillRecord['igst_total'],
+	           'cgst_total' =>$firstIndexBillRecord['cgst_total'],
+	           'sgst_total' =>$firstIndexBillRecord['sgst_total'],
+	           'amount_payable_in_words' => numberTowordsEnglish($firstIndexBillRecord['amount_payable'])
+	           ];
+	       
+	       $billDetailedData['society_paramter'] = [
+	           'bill_note' => $firstIndexBillRecord['bill_note']
+	           ];
+	        $paymentData = $this->memberPaymentSummary($memberId);
+    	    $billDetailedData['payment_data']['payments'] = $paymentData;	        
+	        if(!empty($paymentData)){
+                $totalAmountPaid = array_sum(array_column($paymentData,'amount_paid'));
+                $billDetailedData['payment_data']['total_paid'] = $totalAmountPaid;
+                $billDetailedData['payment_data']['total_paid_in_words'] = "RUPESS ".numberTowordsEnglish($totalAmountPaid);	           	        
+	        }
+
+            $billDetailedData['tarrif_data'] = [];
+            foreach($billDetailed as $data){
+                $tarrif = [
+                    'tarrif' => $data->title,
+                        'tarrif_amount' =>  $data->amount
+                    ];
+                    array_push($billDetailedData['tarrif_data'],$tarrif);
+            }                         
+                                      
+                
+            $fileData['bill_data'] = $billDetailedData['bill_data'];
+            return response()->json([
+                'status'  => config('constants.SUCCESS'),
+                'message' => '',
+                'data'    => $fileData
+            ], 200);
+
+	        }
+            return response()->json([
+                'status'  => config('constants.UNSUCCESS'),
+                'message' => '',
+                'data'    => $billDetailedData
+            ], 200);
+
+
+    }
+
 }
