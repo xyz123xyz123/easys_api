@@ -27,6 +27,8 @@ class DashboardController extends Controller
             ], 422);
         } 
 
+        $token = $request->bearerToken();
+
         $member_id  = trim((string) $request->input('member_id'));
         $society_id = trim((string) $request->input('society_id'));
         $mobile_no  = trim((string) $request->input('mobile_no'));
@@ -37,43 +39,36 @@ class DashboardController extends Controller
         );
         
 
-        $bill_response = Http::withHeaders([
-            'Accept' => 'application/json',
-        ])->post(
-            rtrim(config('app.url'), '/') . '/api/get-my-bill-summary',
+        $bill_response = Http::withToken($request->bearerToken())
+        ->acceptJson()
+        ->post(rtrim(config('app.url'), '/') . '/api/get-my-bill-summary',
             [
                 'member_id'  => $member_id,
                 'society_id' => $society_id,
+                'mobile_no' =>  $mobile_no
             ]
         );
 
-        $ledger_response = Http::withHeaders([     
-        'Accept' => 'application/json',
-        ])->post(rtrim(config('app.url'), '/') . '/api/get-member-ledger', [
+        $ledger_response = Http::withToken($request->bearerToken())
+        ->acceptJson()
+        ->post(rtrim(config('app.url'), '/') . '/api/get-member-ledger', [
             'member_id' => $member_id,'is_pdf_required' => $is_pdf_required
         ]);
 
 
-        $payment_response = Http::withHeaders([     
-        'Accept' => 'application/json',
-        ])->post(rtrim(config('app.url'), '/') . '/api/payment-summary', [
-            'member_id' => $member_id,'society_id' => $society_id,'mobile_no' => $mobile_no
+        $payment_response = Http::withToken($request->bearerToken())
+        ->acceptJson()
+        ->post(rtrim(config('app.url'), '/') . '/api/payment-summary', [
+            'member_id' => $member_id,'society_id' => $society_id
         ]);  
-
-        // $flat_response = Http::withHeaders([     
-        // 'Accept' => 'application/json',
-        // ])->post(rtrim(config('app.url'), '/') . '/api/get-flat_details', [
-        //     'mobile_no' => $mobile_no
-        // ]);
-
         
         $data['bill_summary'] = $bill_response->json();
         $data['ledger_summary'] = $ledger_response->json();
-        $data['payment_summary'] = $payment_response->json();
-        // $data['flat_summary'] = $flat_response->json();
-
-        // return $bill_response->json();
-        // return $data;
+        $data['payment_summary'] = data_get(
+            $payment_response->json(),
+            'payment_summary'
+        );
+   
         return response()->json([
             'status'  => config('constants.SUCCESS'),
             'message' => 'Dashboard Details fetched successfully',

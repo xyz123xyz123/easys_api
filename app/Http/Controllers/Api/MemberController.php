@@ -49,7 +49,8 @@ class MemberController extends Controller {
         
         $validation = Validator::make($request->all(),[
             'member_id' => 'required',
-            'society_id' => 'required'
+            'society_id' => 'required',
+            'mobile_no' => 'required|digits_between:10,15'
             ]);
         if($validation->fails()){
             return response()->json([
@@ -62,6 +63,7 @@ class MemberController extends Controller {
         
         $memberId = $request->input('member_id');
         $societyId = $request->input('society_id');
+        $mobileNo = trim($request->input('mobile_no'));
         $upatedMemeberBillSummary = [];
         
         $memberBillSummary = MemberBillSummary::where('member_id',$memberId)->where('society_id',$societyId)
@@ -82,6 +84,40 @@ class MemberController extends Controller {
                 $summary['bill_duration'] = dateFormatMMDDYY($billGeneratedDate).'-'.dateFormatMMDDYY($billEndDate);
                 $summary['bill_due_date'] = dateFormatMMDDYY($billDueDate);
                 $summary['bill_type'] =  ($summary['bill_type'] == 'reg') ? 'Regular' : 'Supplementary';
+            
+                $flatNos = DB::table('members')
+                        ->where('member_phone', $mobileNo)
+                        ->whereNotNull('user_id')
+                        ->pluck('flat_no') 
+                        ->toArray();
+
+                natsort($flatNos);
+                $flatNos = array_values($flatNos);
+
+                $switch_flat_status = false;
+                $flat_no_array = [];
+
+                if (!empty($flatNos)) {
+                    $switch_flat_status = count($flatNos) > 1;   
+                    $flat_no_array = $flatNos;
+                }
+
+                $memberPaymentDetails = $this->memberPaymentSummary($memberId);
+            
+                if (is_array($memberPaymentDetails) && isset($memberPaymentDetails[0])) {
+                    $paymentFirstIndexData = $memberPaymentDetails[0];  
+                    $summary['member_prefix'] = $paymentFirstIndexData['member_prefix'];
+                    $summary['member_name'] = $paymentFirstIndexData['member_name'];
+                    $summary['current_flat_no'] = $paymentFirstIndexData['flat_no'];
+                    $summary['switch_flat_status'] = $switch_flat_status;
+                    $summary['flat_no'] = $flat_no_array;
+                }else{
+                    $summary['member_prefix'] = null;
+                    $summary['member_name'] = null;
+                    $summary['current_flat_no'] = null;
+                    $summary['switch_flat_status'] = $switch_flat_status ?? false;
+                    $summary['flat_no'] = $flat_no_array ?? [];
+                }
                 
                 array_push($upatedMemeberBillSummary,$summary);
             }
@@ -303,77 +339,57 @@ class MemberController extends Controller {
         return response_json(UNSUCCESS,'Member Bill Not Available');
     }
     
-    public function getPaymentSummary(Request $request){
-        
-        $validation = Validator::make($request->all(),[
-            'member_id' => 'required',
-            'society_id' => 'required',
-            'mobile_no' => 'required|digits_between:10,15'
-            ]);
-        if($validation->fails()){
+    public function getPaymentSummary(Request $request)
+    {
+        $validation = Validator::make($request->all(), [
+            'member_id'  => 'required'            
+        ]);
+
+        if ($validation->fails()) {
             return response()->json([
-                'status'  => config('constants.MISSINGPARAMETER'),
-                'message' => implode(', ', $validation->errors()->all()),
-                'data'    => null
+                'payment_summary' => [
+                    'status'  => config('constants.MISSINGPARAMETER'),
+                    'message' => implode(', ', $validation->errors()->all()),
+                    'total_paid' => 0,
+                    'total_paid_in_words' => null,
+                    'payment_data' => [],
+                ]
             ], 422);
+        }
 
-        }      
-        
-        $memberId = $request->input('member_id');
-        $societyId = $request->input('society_id');          
-        $paymentResponse = [];
-        $paymentResponse['payment_data'] = [];
+        $memberId = trim($request->member_id);
+
         $memberPaymentDetails = $this->memberPaymentSummary($memberId);
-        $memberPaymentDetails1 = $memberPaymentDetails;
-        if(!empty($memberPaymentDetails)){
-            $totalAmountPaid = array_sum(array_column($memberPaymentDetails,'amount_paid'));
-            $paymentFirstIndexData = $memberPaymentDetails[0];    
-            $paymentResponse['payment_data'] = $memberPaymentDetails1;
-            $paymentResponse['total_paid'] = $totalAmountPaid;
-            $paymentResponse['total_paid_in_words'] = numberTowordsEnglish($totalAmountPaid);
 
-            $mobileNo = trim($request->mobile_no);
-            
-           $flatNos = DB::table('members')
-                ->where('member_phone', $mobileNo)
-                ->whereNotNull('user_id')
-                ->pluck('flat_no')   // Laravel way
-                ->toArray();
+        // Default response (no data)
+        $paymentSummary = [
+            'status'  => config('constants.UNSUCCESS'),
+            'message' => 'Payments not available',
+            'total_paid' => 0,
+            'total_paid_in_words' => null,
+            'payment_data' => [],
+        ];
 
-            natsort($flatNos);
-            $flatNos = array_values($flatNos);
+        if (!empty($memberPaymentDetails) && is_array($memberPaymentDetails)) {
 
-            $switch_flat_status = false;
-            $flat_no_array = [];
+            $totalAmountPaid = array_sum(
+                array_column($memberPaymentDetails, 'amount_paid')
+            );
 
-            if (!empty($flatNos)) {
-                $switch_flat_status = count($flatNos) > 1;   // true only if multiple flats
-                $flat_no_array = $flatNos;
-            }
-
-            $paymentResponse['member_data'] = [
-                'member_prefix' => $paymentFirstIndexData['member_prefix'],
-                'member_name' => $paymentFirstIndexData['member_name'],
-                'current_flat_no' => $paymentFirstIndexData['flat_no'],
-                'switch_flat_status' => $switch_flat_status,
-                'flat_no' => $flat_no_array
-                ];
-            
-            return response()->json([
+            $paymentSummary = [
                 'status'  => config('constants.SUCCESS'),
                 'message' => 'Payments fetched successfully',
-                'data'    => $paymentResponse
-            ], 200);
-
+                'total_paid' => $totalAmountPaid,
+                'total_paid_in_words' => numberTowordsEnglish($totalAmountPaid),
+                'payment_data' => $memberPaymentDetails,
+            ];
         }
-        else
-            return response()->json([
-                'status'  => config('constants.UNSUCCESS'),
-                'message' => 'Payments not available',
-                'data'    => $paymentResponse
-            ], 404);
 
+        return response()->json([
+            'payment_summary' => $paymentSummary
+        ], 200);
     }
+
     
     public function memberPaymentSummary($memberId){
         return Payment::leftjoin('banks','member_payments.member_bank_id','=','banks.id')
@@ -678,35 +694,23 @@ class MemberController extends Controller {
         $response['total_balance'] = (new CommonController)->convertToDrCr($totalBal);
         
         $fileData = (new PdfController)->generateLedgerPdf($response);
-        if(empty($fileData))
+        if(empty($fileData)){
             return response()->json([
                 'status'  => config('constants.UNSUCCESS'),
                 'message' => 'Failed to generate PDF',
-                'data'    => null
+                'file_path'    => null,
+                'file_name'    => null
             ], 500);
-
+        }else{
             
-        // if($type == 'email'){
-        //     if(!empty($emailId)){
-        //         $fileName = $fileData['file_path'];
-        //         $sendStatus = $this->sendEmail($emailId,$fileName,'Ledger');
-        //         if($sendStatus){
-        //             return response_json(SUCCESS,"Email Sent To $emailId",$fileData);
-        //         }
-        //         else{
-        //             return response_json(SUCCESS,"Email Not Sent");
-        //         }
-        //     }
-        //     else{
-        //         return response_json(UNSUCCESS,'Email Id Not Registered'); 
-        //     }
-        // }
+            return response()->json([
+                'status'  => config('constants.SUCCESS'),
+                'message' => 'Member Ledger Data Fetched Successfully',
+                'file_path'    => $fileData['file_path'],
+                'file_name'    => $fileData['file_name'],
+            ], 200);
 
-        return response()->json([
-            'status'  => config('constants.SUCCESS'),
-            'message' => 'Member Ledger Data Fetched Successfully',
-            'data'    => $fileData
-        ], 200);
+        }
 
                 
     }

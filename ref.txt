@@ -24,3 +24,7 @@ $user->save();
 if (!Hash::check($request->otp, $user->otp)) {
     return response()->json(['status' => false, 'message' => 'Invalid OTP'], 401);
 }
+php artisan optimize
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
