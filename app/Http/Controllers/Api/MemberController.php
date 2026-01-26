@@ -72,6 +72,7 @@ class MemberController extends Controller {
        
         if(!empty($memberBillSummary)){
             foreach($memberBillSummary as $summary){
+                $bill_no = $summary['bill_no'];
                 $billFreqId = $summary['bill_frequency_id'];
                 $billMonth = $summary['bill_month'];
                 $billGeneratedDate = $summary['bill_generated_date'];
@@ -84,7 +85,10 @@ class MemberController extends Controller {
                 $summary['bill_duration'] = dateFormatMMDDYY($billGeneratedDate).'-'.dateFormatMMDDYY($billEndDate);
                 $summary['bill_due_date'] = dateFormatMMDDYY($billDueDate);
                 $summary['bill_type'] =  ($summary['bill_type'] == 'reg') ? 'Regular' : 'Supplementary';
+                $bill_type =  ($summary['bill_type'] == 'reg') ? 'Regular' : 'Supplementary';
             
+                $pdf_data = $this->getBillPdf($memberId, $societyId, $bill_no, $billMonth, $bill_type);               
+                // echo json_encode($pdf_data);die;  
                 $flatNos = DB::table('members')
                         ->where('member_phone', $mobileNo)
                         ->whereNotNull('user_id')
@@ -111,6 +115,16 @@ class MemberController extends Controller {
                     $summary['current_flat_no'] = $paymentFirstIndexData['flat_no'];
                     $summary['switch_flat_status'] = $switch_flat_status;
                     $summary['flat_no'] = $flat_no_array;
+                    // $summary['pdf_data'] = $pdf_data;
+                    if (!empty($pdf_data) && isset($pdf_data['file_path'], $pdf_data['file_name'])) {
+                        $summary['file_path'] = $pdf_data['file_path'];
+                        $summary['file_name'] = $pdf_data['file_name'];
+                    }else{
+                        $summary['file_path'] = "";
+                        $summary['file_name'] = "";
+                    }
+
+
                 }else{
                     $summary['member_prefix'] = null;
                     $summary['member_name'] = null;
@@ -136,7 +150,138 @@ class MemberController extends Controller {
             'data'    => $upatedMemeberBillSummary
         ], 404);
 
-    }    
+    } 
+    
+    public function  getBillPdf($member_id,$society_id,$bill_no,$bill_month,$type){   
+        
+        $memberId = trim($member_id);
+        $societyId = trim($society_id);        
+        $billNo = trim($bill_no);
+        $billMonth = trim($bill_month);
+        $type = trim($type);
+
+        $billDetailedData = [];        
+        $startDate = $this->startDate;
+        $endDate = $this->endDate;
+
+        $sql = "select summaries.member_id,month,bill_due_date,bill_generated_date,bill_no,bill_type,monthly_amount,amount_payable,op_principal_arrears,monthly_bill_amount,interest_on_due_amount,
+            op_interest_arrears,igst_total,cgst_total,sgst_total,principal_adjusted,interest_adjusted,discount,op_due_amount,tax_total
+            ,member_prefix,member_name,member_email,flat_no,residential,unit_type,floor_no,igst_total,cgst_total,sgst_total,principal_adjusted,interest_adjusted,discount,
+                society_name,society_code,registration_no,registration_date,email_id,address,telephone_no,authorised_person,bill_note,show_bills_in_receipt,special_field,title,amount,bill_frequency_id,wing_id,area    from 
+            (
+                select member_id,month,bill_due_date,bill_generated_date,bill_no,bill_type,amount_payable,op_principal_arrears,society_id,bill_frequency_id,monthly_bill_amount,interest_on_due_amount,
+                op_interest_arrears,igst_total,cgst_total,sgst_total,principal_adjusted,interest_adjusted,discount,op_due_amount,tax_total,monthly_amount from member_bill_summaries 
+                where bill_no = $billNo and society_id = $societyId and bill_generated_date between  '$startDate' and '$endDate'
+            )  as summaries
+            join (
+	            select id ,member_prefix,member_name,member_email,flat_no,residential,unit_type,floor_no,wing_id,area from members where id = $memberId limit 1
+            ) as member
+            on summaries.member_id = member.id
+            join (
+	            select id,society_name,society_code,registration_no,registration_date,email_id,address,telephone_no,authorised_person from societies where id = $societyId limit 1
+            ) as society on society.id = summaries.society_id
+            join (
+	            select bill_note,show_bills_in_receipt,society_id,special_field from society_parameters where society_id = $societyId limit 1
+            ) as parameter on parameter.society_id = summaries.society_id
+            left join (
+                select title,amount,member_id from member_bill_generates  join society_ledger_heads  on member_bill_generates.ledger_head_id = society_ledger_heads.id 
+                where member_bill_generates.society_id = $societyId and month = $billMonth and amount > 0
+	       ) leaderHeads on summaries.member_id = leaderHeads.member_id";
+
+        //    echo $sql;die;
+        
+        $billDetailed = DB::select($sql);
+
+	   if(!empty($billDetailed)){
+	       $firstIndexBillRecord = (array)$billDetailed[0];
+	       $emailId = $firstIndexBillRecord['member_email'];
+	       $billDetailedData['society_data'] = [
+	           'name' => $firstIndexBillRecord['society_name'],
+	           'registeration_no' => $firstIndexBillRecord['registration_no'],
+	           'registeration_date' => $firstIndexBillRecord['registration_date'],
+	           'address' => $firstIndexBillRecord['address'],
+	           'email_id' => $firstIndexBillRecord['email_id'],
+	           'telephone_no' => $firstIndexBillRecord['telephone_no'],
+	           'authorized_persion'=> $firstIndexBillRecord['authorised_person']
+	           ];
+	           
+	       $billDetailedData['member_data'] = [
+	           'member_id' => $firstIndexBillRecord['member_id'],
+	           'prefix' => $firstIndexBillRecord['member_prefix'],
+	           'name' => $firstIndexBillRecord['member_name'],
+	           'flat_no' => $firstIndexBillRecord['flat_no'],
+	           'unit_type' => $firstIndexBillRecord['unit_type'],
+	           'floor_no' => $firstIndexBillRecord['floor_no'],
+	           'area' => $firstIndexBillRecord['area'],
+	           'wing_id' => $firstIndexBillRecord['wing_id']	           
+	           ];
+	       $billMonth = $firstIndexBillRecord['month'];
+	       $billFequenyId = $firstIndexBillRecord['bill_frequency_id'];
+	       $billGeneratedDate = $firstIndexBillRecord['bill_generated_date'];
+	       $billYear = date('Y',strtotime($billGeneratedDate));
+	       $billDetailedData['bill_data'] = [
+	           'bill_month' => $billMonth,
+	           'bill_for' => (new CommonController)->societyBillingFrequency($billFequenyId,$billMonth).' '.$billYear,
+	           'bill_no' => $firstIndexBillRecord['bill_no'],
+	           'bill_date' => dateFormatMMDDYY($firstIndexBillRecord['bill_generated_date']),
+	           'bill_due_date' => dateFormatMMDDYY($firstIndexBillRecord['bill_due_date']),
+	           'bill_amount' => $firstIndexBillRecord['monthly_amount']-$firstIndexBillRecord['tax_total'],
+	           'amount_payable' => (new CommonController)->convertToDrCr($firstIndexBillRecord['amount_payable']),
+	           'principal_arrears' =>(new CommonController)->convertToDrCr($firstIndexBillRecord['op_principal_arrears']),
+	           'interest_arrears' =>(new CommonController)->convertToDrCr($firstIndexBillRecord['op_interest_arrears']),
+	           'interest' =>$firstIndexBillRecord['interest_on_due_amount'],
+	           'principal_credit' => (new CommonController)->convertToDrCr($firstIndexBillRecord['op_due_amount']),
+	           'less_adjustment' => $firstIndexBillRecord['principal_adjusted']+$firstIndexBillRecord['interest_adjusted']+$firstIndexBillRecord['discount'],
+	           'bill_type' =>  ($firstIndexBillRecord['bill_type'] == 'reg') ? 'Regular' : 'Supplementary',
+	           'igst_total' =>$firstIndexBillRecord['igst_total'],
+	           'cgst_total' =>$firstIndexBillRecord['cgst_total'],
+	           'sgst_total' =>$firstIndexBillRecord['sgst_total'],
+	           'amount_payable_in_words' => numberTowordsEnglish($firstIndexBillRecord['amount_payable'])
+	           ];
+	       
+	       $billDetailedData['society_paramter'] = [
+	           'bill_note' => $firstIndexBillRecord['bill_note']
+	           ];
+	        $paymentData = $this->memberPaymentSummary($memberId);
+    	    $billDetailedData['payment_data']['payments'] = $paymentData;	        
+	        if(!empty($paymentData)){
+                $totalAmountPaid = array_sum(array_column($paymentData,'amount_paid'));
+                $billDetailedData['payment_data']['total_paid'] = $totalAmountPaid;
+                $billDetailedData['payment_data']['total_paid_in_words'] = "RUPESS ".numberTowordsEnglish($totalAmountPaid);	           	        
+	        }
+
+            $billDetailedData['tarrif_data'] = [];
+            foreach($billDetailed as $data){
+                $tarrif = [
+                    'tarrif' => $data->title,
+                        'tarrif_amount' =>  $data->amount
+                    ];
+                    array_push($billDetailedData['tarrif_data'],$tarrif);
+            }
+            $fileData = (new PdfController)->generateBillPdf($billDetailedData);
+
+                if(empty($fileData))
+                    return response()->json([
+                        'status'  => config('constants.UNSUCCESS'),
+                        'message' => 'Failed to generate PDF',
+                        'data'    => null
+                    ], 500);                    
+                                      
+                
+                // $fileData['bill_data'] = $billDetailedData['bill_data'];
+                return $fileData;
+
+	        }
+            // return response()->json([
+            //     'status'  => config('constants.UNSUCCESS'),
+            //     'message' => '',
+            //     'data'    => $billDetailedData
+            // ], 200);
+
+            return [];
+
+
+    }
     
     public function  getDetailedBill(Request $request){
         $validation = Validator::make($request->all(),[
@@ -357,9 +502,21 @@ class MemberController extends Controller {
             ], 422);
         }
 
-        $memberId = trim($request->member_id);
+        $memberId = trim($request->member_id);          
 
         $memberPaymentDetails = $this->memberPaymentSummary($memberId);
+
+        foreach ($memberPaymentDetails as $key => $payment) {
+            if (!isset($payment['payment_id'])) {
+                continue;
+            }
+            $paymentId = $payment['payment_id'];
+            $pdfData = $this->getPaymentPdf($paymentId);
+            $memberPaymentDetails[$key]['file_path'] = !empty($pdfData) ? $pdfData['file_path'] : null;
+            $memberPaymentDetails[$key]['file_name'] = !empty($pdfData) ? $pdfData['file_name'] : null;
+        }
+
+        
 
         // Default response (no data)
         $paymentSummary = [
@@ -374,7 +531,7 @@ class MemberController extends Controller {
 
             $totalAmountPaid = array_sum(
                 array_column($memberPaymentDetails, 'amount_paid')
-            );
+            );        
 
             $paymentSummary = [
                 'status'  => config('constants.SUCCESS'),
@@ -397,6 +554,39 @@ class MemberController extends Controller {
         ->join('payment_modes','member_payments.payment_mode','=','payment_modes.id')
         ->select('member_prefix','member_name','flat_no','member_payments.id as payment_id','receipt_id','cheque_reference_number','narration','amount_paid',DB::raw("date_format(payment_date,'%d-%m-%Y') as payment_date"),DB::raw("date_format(entry_date,'%d-%m-%Y') entry_date"),'bank_name','payment_modes.payment_mode')
         ->where('member_id',$memberId)->whereBetween('payment_date',[$this->startDate,$this->endDate])->orderby('payment_date','desc')->get()->toArray();        
+    }
+
+    public function getPaymentPdf($payment_id){   
+
+        if (empty($payment_id)) {
+            return [];
+        }
+        
+        $paymentId = $payment_id;
+        // $type = $request->input('type');
+        $paymentDetails =  Payment::leftjoin('banks','member_payments.member_bank_id','=','banks.id')->where('member_payments.id',$paymentId)
+        ->select('member_payments.id as payment_id','receipt_id','cheque_reference_number','narration',
+         'amount_paid',DB::raw("date_format(payment_date,'%d-%m-%Y') as payment_date"),DB::raw("date_format(entry_date,'%d-%m-%Y') entry_date"),'bank_name','payment_modes.payment_mode','members.id as member_id',
+         'member_prefix','member_name','member_email','society_name','address','email_id','telephone_no','registration_no',DB::raw("date_format(registration_date,'%d-%m-%Y') registration_date"),'flat_no')
+        ->join('payment_modes','member_payments.payment_mode','=','payment_modes.id')
+        ->join('members','member_payments.member_id','=','members.id')
+        ->join('societies','member_payments.society_id','=','societies.id')
+        ->whereBetween('payment_date',[$this->startDate,$this->endDate])
+        ->get()->first();          
+
+        if(!empty($paymentDetails)){
+            $paymentDetails = $paymentDetails->toArray();
+            $fileData = (new PdfController)->generateReciptPdf($paymentDetails);
+            if(!empty($fileData)){
+              return $fileData;
+
+            }            
+            return [];
+
+        }
+        else{
+            return [];
+        }
     }
     
     public function memberPaymentInDetail(Request $request){

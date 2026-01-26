@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\LogoutController;
 */
 Route::post('/login', [LoginController::class, 'authenticate']);
 Route::post('/verify-otp', [LoginController::class, 'verifyOtp']);
+Route::get('/pdf/{type}/{filename}', [PdfController::class, 'show']);
 
 /*
 |--------------------------------------------------------------------------
@@ -29,7 +30,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/get-flat_details', [MemberController::class, 'getFlatDetails']);
     Route::post('/get-dashboard-data', [DashboardController::class, 'getData']);
     Route::post('/get-payment-pdf', [MemberController::class, 'memberPaymentInDetail']);
-    Route::get('/pdf/{type}/{filename}', [PdfController::class, 'show']);
     Route::post('/get-switch-flat-details', [MemberController::class, 'getSwitchFlatDetails']);    
     Route::post('/logout', [LogoutController::class, 'logout']);
 });
