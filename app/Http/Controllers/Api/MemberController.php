@@ -1098,7 +1098,8 @@ class MemberController extends Controller {
             'member_id' => 'required',
             'society_id' => 'required',
             'bill_no' => 'required',
-            'bill_month' => 'required'
+            'bill_month' => 'required',
+            'flat_no' => 'required',
             ]);
             
             if ($validation->fails()) {
@@ -1114,6 +1115,8 @@ class MemberController extends Controller {
         $societyId = $request->input('society_id');        
         $billNo = $request->input('bill_no');
         $billMonth = $request->input('bill_month');
+        $flat_no = $request->input('flat_no');
+
         $type = $request->has('type') ? $request->input('type') : '';
         $billDetailedData = [];
         
@@ -1127,10 +1130,10 @@ class MemberController extends Controller {
             (
                 select member_id,month,bill_due_date,bill_generated_date,bill_no,bill_type,amount_payable,op_principal_arrears,society_id,bill_frequency_id,monthly_bill_amount,interest_on_due_amount,
                 op_interest_arrears,igst_total,cgst_total,sgst_total,principal_adjusted,interest_adjusted,discount,op_due_amount,tax_total,monthly_amount from member_bill_summaries 
-                where bill_no = $billNo and society_id = $societyId and bill_generated_date between  '$startDate' and '$endDate'
+                where bill_no = $billNo and flat_no = $flat_no and society_id = $societyId and bill_generated_date between  '$startDate' and '$endDate'
             )  as summaries
             join (
-	            select id ,member_prefix,member_name,member_email,flat_no,residential,unit_type,floor_no,wing_id,area from members where id = $memberId limit 1
+	            select id ,member_prefix,member_name,member_email,flat_no,residential,unit_type,floor_no,wing_id,area from members where id = $memberId and flat_no = $flat_no  limit 1
             ) as member
             on summaries.member_id = member.id
             join (
@@ -1171,11 +1174,13 @@ class MemberController extends Controller {
 	           'area' => $firstIndexBillRecord['area'],
 	           'wing_id' => $firstIndexBillRecord['wing_id']	           
 	           ];
+	       $flat_no_data = $firstIndexBillRecord['flat_no'];
 	       $billMonth = $firstIndexBillRecord['month'];
 	       $billFequenyId = $firstIndexBillRecord['bill_frequency_id'];
 	       $billGeneratedDate = $firstIndexBillRecord['bill_generated_date'];
 	       $billYear = date('Y',strtotime($billGeneratedDate));
 	       $billDetailedData['bill_data'] = [
+	           'flat_no' => $flat_no_data,
 	           'bill_month' => $billMonth,
 	           'bill_for' => (new CommonController)->societyBillingFrequency($billFequenyId,$billMonth).' '.$billYear,
 	           'bill_no' => $firstIndexBillRecord['bill_no'],
@@ -1218,17 +1223,18 @@ class MemberController extends Controller {
                 
             $fileData['bill_data'] = $billDetailedData['bill_data'];
             return response()->json([
-                'status'  => config('constants.SUCCESS'),
-                'message' => '',
-                'data'    => $fileData
-            ], 200);
+                    'status'  => config('constants.SUCCESS'),
+                    'message' => 'Bill details fetched successfully',
+                    'data'    => $fileData
+                ], 200);
 
 	        }
             return response()->json([
                 'status'  => config('constants.UNSUCCESS'),
-                'message' => '',
-                'data'    => $billDetailedData
+                'message' => 'No bill data found for the given request',
+                'data'    => (object)$billDetailedData
             ], 200);
+
 
 
     }

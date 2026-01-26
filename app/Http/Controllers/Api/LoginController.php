@@ -29,7 +29,7 @@ class LoginController extends Controller
             return response()->json([
                 'status'  => false,
                 'message' => implode(', ', $validator->errors()->all())
-            ], 422);
+            ], 200);
         }
 
         $mobileNo = $request->mobile_no;       
@@ -43,7 +43,7 @@ class LoginController extends Controller
             return response()->json([
                 'status'  => false,
                 'message' => 'Invalid mobile number'
-            ], 401);
+            ], 200);
         }
 
         // Fetch member info (existing logic preserved)
@@ -54,7 +54,7 @@ class LoginController extends Controller
             return response()->json([
                 'status'  => false,
                 'message' => 'Member not found'
-            ], 404);
+            ], 200);
         }
 
         // Log login
@@ -104,13 +104,14 @@ class LoginController extends Controller
             'status'  => true,
             'message' => 'Logged in successfully',
             'data'    => [
-                'mobile_no' => $mobileNo,
-                'email_id' => $email,
-                'otp' => $otp,
-                'email_status' => $email_status,
+                'mobile_no'        => $mobileNo,
+                'email_id'         => $email,
+                'otp'              => $otp,
+                'email_status'     => $email_status,
                 'email_status_msg' => $email_status_msg
             ]
-        ]);
+        ], 200);
+
     }
 
     /**
